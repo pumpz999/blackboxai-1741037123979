@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 15, 23, 42;
+  --background-end-rgb: 30, 41, 59;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--background-start-rgb)),
+    rgb(var(--background-end-rgb))
+  );
+  min-height: 100vh;
+}
+
+/* Custom utility classes */
+@layer components {
+  .neon-border {
+    @apply border-2 border-transparent bg-gradient-to-r from-neon-pink via-neon-blue to-neon-purple bg-clip-border;
+  }
+
+  .neon-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-neon-pink via-neon-blue to-neon-purple;
+  }
+
+  .glass-panel {
+    @apply bg-white bg-opacity-10 backdrop-blur-lg rounded-xl;
+  }
+
+  .interactive-card {
+    @apply transform transition-all duration-300 hover:scale-105 hover:shadow-xl;
+  }
+
+  .button-glow {
+    @apply relative overflow-hidden;
+  }
+
+  .button-glow::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-neon-pink via-neon-blue to-neon-purple opacity-0 transition-opacity duration-300;
+  }
+
+  .button-glow:hover::before {
+    @apply opacity-20;
+  }
+}
+
+/* Animation classes */
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-dark-bg;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gradient-to-b from-neon-pink via-neon-blue to-neon-purple rounded-full;
+}
+
+/* Loading spinner */
+.loading-spinner {
+  @apply w-12 h-12 border-4 border-neon-blue rounded-full animate-spin;
+  border-top-color: transparent;
+}
