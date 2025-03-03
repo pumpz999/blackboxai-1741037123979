@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useWeb3React } from '@web3-react/core'
+import { Web3Provider } from '@ethersproject/providers'
 import NavBar from '../components/NavBar'
 
 interface Token {
@@ -13,25 +14,58 @@ interface Token {
 }
 
 export default function DEX() {
-  const { active, account } = useWeb3React()
+  const { account, isActive } = useWeb3React<Web3Provider>()
   const [fromToken, setFromToken] = useState<Token | null>(null)
   const [toToken, setToToken] = useState<Token | null>(null)
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
+  const [autoTrigger, setAutoTrigger] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const timerRef = useRef<NodeJS.Timeout>()
 
+  // Handle swap function
   const handleSwap = async () => {
-    if (!fromToken || !toToken || !amount || !active) return
+    if (!fromToken || !toToken || !amount || !isActive) {
+      setError('Please select tokens and enter amount')
+      return
+    }
     
     try {
       setLoading(true)
+      setError(null)
       // Swap logic will be implemented here
       console.log('Swapping tokens...')
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate swap
     } catch (error) {
       console.error('Swap failed:', error)
+      setError(error instanceof Error ? error.message : 'Swap failed')
     } finally {
       setLoading(false)
     }
   }
+
+  // Auto-trigger effect
+  useEffect(() => {
+    // Clear any existing timer
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+    }
+
+    // Check if auto-trigger is enabled and conditions are met
+    if (autoTrigger && isActive && fromToken && toToken && amount && !loading) {
+      // Set a timer to avoid rapid triggers
+      timerRef.current = setTimeout(() => {
+        handleSwap()
+      }, 1000) // 1 second delay
+    }
+
+    // Cleanup function
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+    }
+  }, [autoTrigger, isActive, fromToken, toToken, amount, loading, handleSwap])
 
   return (
     <div className="min-h-screen bg-dark-bg">
@@ -121,23 +155,51 @@ export default function DEX() {
                 </div>
               </div>
 
+              {/* Auto Trigger Toggle */}
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-gray-400">Auto Swap</span>
+                <motion.button
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold 
+                    ${autoTrigger 
+                      ? 'bg-gradient-to-r from-neon-pink to-neon-blue button-glow' 
+                      : 'bg-card-bg'}`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setAutoTrigger(!autoTrigger)}
+                  disabled={!isActive || loading}
+                >
+                  {autoTrigger ? 'On' : 'Off'}
+                </motion.button>
+              </div>
+
               {/* Swap Button */}
               <motion.button
                 className={`w-full py-4 rounded-lg text-lg font-semibold 
-                  ${active 
+                  ${isActive 
                     ? 'bg-gradient-to-r from-neon-pink to-neon-blue button-glow' 
                     : 'bg-gray-600 cursor-not-allowed'}`}
-                whileHover={active ? { scale: 1.02 } : {}}
-                whileTap={active ? { scale: 0.98 } : {}}
+                whileHover={isActive ? { scale: 1.02 } : {}}
+                whileTap={isActive ? { scale: 0.98 } : {}}
                 onClick={handleSwap}
-                disabled={!active || loading}
+                disabled={!isActive || loading}
               >
-                {!active 
+                {!isActive 
                   ? 'Connect Wallet' 
                   : loading 
                     ? 'Swapping...' 
                     : 'Swap'}
               </motion.button>
+
+              {/* Error Message */}
+              {error && (
+                <motion.div
+                  className="mt-4 p-4 rounded-lg bg-red-500 bg-opacity-20 text-red-400 text-sm"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  {error}
+                </motion.div>
+              )}
 
               {/* Price Info */}
               {fromToken && toToken && (
