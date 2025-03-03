@@ -3,15 +3,8 @@ import { motion } from 'framer-motion'
 import { useWeb3React } from '@web3-react/core'
 import { Web3Provider } from '@ethersproject/providers'
 import NavBar from '../components/NavBar'
-
-interface Token {
-  symbol: string
-  name: string
-  address: string
-  chainId: number
-  decimals: number
-  logoURI: string
-}
+import TokenSelector from '../components/TokenSelector'
+import { Token } from '../types/token'
 
 export default function DEX() {
   const { account, isActive } = useWeb3React<Web3Provider>()
@@ -22,6 +15,8 @@ export default function DEX() {
   const [autoTrigger, setAutoTrigger] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const timerRef = useRef<NodeJS.Timeout>()
+  const [isSelectingFrom, setIsSelectingFrom] = useState(false)
+  const [isSelectingTo, setIsSelectingTo] = useState(false)
 
   // Handle swap function
   const handleSwap = async () => {
@@ -105,7 +100,7 @@ export default function DEX() {
                   />
                   <button
                     className="ml-2 px-4 py-2 rounded-lg button-glow bg-card-bg"
-                    onClick={() => console.log('Select token')}
+                    onClick={() => setIsSelectingFrom(true)}
                   >
                     {fromToken ? fromToken.symbol : 'Select'}
                   </button>
@@ -148,7 +143,7 @@ export default function DEX() {
                   />
                   <button
                     className="ml-2 px-4 py-2 rounded-lg button-glow bg-card-bg"
-                    onClick={() => console.log('Select token')}
+                    onClick={() => setIsSelectingTo(true)}
                   >
                     {toToken ? toToken.symbol : 'Select'}
                   </button>
@@ -218,6 +213,20 @@ export default function DEX() {
           </div>
         </motion.div>
       </div>
+
+      {/* Token Selectors */}
+      <TokenSelector
+        isOpen={isSelectingFrom}
+        onClose={() => setIsSelectingFrom(false)}
+        onSelect={setFromToken}
+        selectedToken={fromToken}
+      />
+      <TokenSelector
+        isOpen={isSelectingTo}
+        onClose={() => setIsSelectingTo(false)}
+        onSelect={setToToken}
+        selectedToken={toToken}
+      />
     </div>
   )
 }
