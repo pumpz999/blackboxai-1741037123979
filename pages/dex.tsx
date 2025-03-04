@@ -8,6 +8,7 @@ import NavBar from '../components/NavBar'
 import TokenSelector from '../components/TokenSelector'
 import { Token } from '../types/token'
 import { createDexContract } from '../utils/dexContract'
+import LiquidityProvider from '../components/LiquidityProvider'
 
 export default function DEX() {
   const { account, active, library } = useWeb3React() as Web3ReactContextInterface<Web3Provider>
@@ -22,6 +23,7 @@ export default function DEX() {
   const timerRef = useRef<NodeJS.Timeout>()
   const [isSelectingFrom, setIsSelectingFrom] = useState(false)
   const [isSelectingTo, setIsSelectingTo] = useState(false)
+  const [isProvidingLiquidity, setIsProvidingLiquidity] = useState(false)
 
   // Initialize dexContract when library (provider) is available
   useEffect(() => {
@@ -70,8 +72,8 @@ export default function DEX() {
       setError(null)
 
       // Check if tokens are supported
-      const isFromSupported = await dexContract.current.isSupportedToken(fromToken.address)
-      const isToSupported = await dexContract.current.isSupportedToken(toToken.address)
+      const isFromSupported = await dexContract.current.supportedTokens(fromToken.address)
+      const isToSupported = await dexContract.current.supportedTokens(toToken.address)
       
       if (!isFromSupported || !isToSupported) {
         throw new Error('One or more tokens are not supported')
@@ -309,6 +311,22 @@ export default function DEX() {
         onSelect={setToToken}
         selectedToken={toToken}
       />
+
+      {/* Liquidity Provider */}
+      <LiquidityProvider
+        isOpen={isProvidingLiquidity}
+        onClose={() => setIsProvidingLiquidity(false)}
+      />
+
+      {/* Add Liquidity Button */}
+      <motion.button
+        className="fixed bottom-8 right-8 p-4 rounded-full button-glow bg-card-bg"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsProvidingLiquidity(true)}
+      >
+        <span className="text-2xl">💧</span>
+      </motion.button>
     </div>
   )
 }
