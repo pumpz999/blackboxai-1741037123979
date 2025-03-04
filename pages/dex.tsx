@@ -1,16 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useWeb3React } from '@web3-react/core'
+import type { Web3ReactContextInterface } from '@web3-react/core/dist/types'
 import { Web3Provider } from '@ethersproject/providers'
+import { ethers } from 'ethers'
 import NavBar from '../components/NavBar'
 import TokenSelector from '../components/TokenSelector'
 import { Token } from '../types/token'
+import { createDexContract } from '../utils/dexContract'
 
 export default function DEX() {
-  const { account, isActive } = useWeb3React<Web3Provider>()
+  const { account, active, library } = useWeb3React() as Web3ReactContextInterface<Web3Provider>
+  const dexContract = useRef(library ? createDexContract(process.env.NEXT_PUBLIC_DEX_CONTRACT_ADDRESS || '', library) : null)
   const [fromToken, setFromToken] = useState<Token | null>(null)
   const [toToken, setToToken] = useState<Token | null>(null)
   const [amount, setAmount] = useState('')
+  const [estimatedOutput, setEstimatedOutput] = useState('0.0')
   const [loading, setLoading] = useState(false)
   const [autoTrigger, setAutoTrigger] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,9 +23,44 @@ export default function DEX() {
   const [isSelectingFrom, setIsSelectingFrom] = useState(false)
   const [isSelectingTo, setIsSelectingTo] = useState(false)
 
+  // Initialize dexContract when library (provider) is available
+  useEffect(() => {
+    if (library) {
+      dexContract.current = createDexContract(
+        process.env.NEXT_PUBLIC_DEX_CONTRACT_ADDRESS || '',
+        library
+      )
+    }
+  }, [library])
+
+  // Calculate estimated output amount when input changes
+  useEffect(() => {
+    const calculateOutput = async () => {
+      if (!dexContract.current || !fromToken || !toToken || !amount || amount === '0') {
+        setEstimatedOutput('0.0')
+        return
+      }
+
+      try {
+        const { tokenReserve, ethReserve } = await dexContract.current.getReserves(fromToken.address)
+        const amountOut = await dexContract.current.getAmountOut(
+          amount,
+          tokenReserve,
+          ethReserve
+        )
+        setEstimatedOutput(amountOut)
+      } catch (error) {
+        console.error('Error calculating output:', error)
+        setEstimatedOutput('0.0')
+      }
+    }
+
+    calculateOutput()
+  }, [fromToken, toToken, amount])
+
   // Handle swap function
   const handleSwap = async () => {
-    if (!fromToken || !toToken || !amount || !isActive) {
+    if (!fromToken || !toToken || !amount || !active || !dexContract.current) {
       setError('Please select tokens and enter amount')
       return
     }
@@ -28,9 +68,51 @@ export default function DEX() {
     try {
       setLoading(true)
       setError(null)
-      // Swap logic will be implemented here
-      console.log('Swapping tokens...')
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate swap
+
+      // Check if tokens are supported
+      const isFromSupported = await dexContract.current.isSupportedToken(fromToken.address)
+      const isToSupported = await dexContract.current.isSupportedToken(toToken.address)
+      
+      if (!isFromSupported || !isToSupported) {
+        throw new Error('One or more tokens are not supported')
+      }
+
+      // Get reserves to calculate price impact
+      const { tokenReserve, ethReserve } = await dexContract.current.getReserves(fromToken.address)
+      
+      // Calculate minimum amount out (with 1% slippage)
+      const amountOut = await dexContract.current.getAmountOut(
+        amount,
+        tokenReserve,
+        ethReserve
+      )
+      const minAmountOut = ethers.utils.formatUnits(
+        ethers.utils.parseUnits(amountOut, 18)
+          .mul(99)
+          .div(100),
+        18
+      )
+
+      // Execute swap
+      if (fromToken.address === ethers.constants.AddressZero) {
+        await dexContract.current.swapExactETHForTokens(
+          toToken.address,
+          minAmountOut,
+          amount
+        )
+      } else if (toToken.address === ethers.constants.AddressZero) {
+        await dexContract.current.swapExactTokensForETH(
+          fromToken.address,
+          amount,
+          minAmountOut
+        )
+      } else {
+        throw new Error('Direct token-to-token swaps not supported')
+      }
+
+      // Clear input
+      setAmount('')
+      setError(null)
     } catch (error) {
       console.error('Swap failed:', error)
       setError(error instanceof Error ? error.message : 'Swap failed')
@@ -47,7 +129,7 @@ export default function DEX() {
     }
 
     // Check if auto-trigger is enabled and conditions are met
-    if (autoTrigger && isActive && fromToken && toToken && amount && !loading) {
+    if (autoTrigger && active && fromToken && toToken && amount && !loading)  {
       // Set a timer to avoid rapid triggers
       timerRef.current = setTimeout(() => {
         handleSwap()
@@ -60,7 +142,7 @@ export default function DEX() {
         clearTimeout(timerRef.current)
       }
     }
-  }, [autoTrigger, isActive, fromToken, toToken, amount, loading, handleSwap])
+  }, [autoTrigger, active, fromToken, toToken, amount, loading, handleSwap])
 
   return (
     <div className="min-h-screen bg-dark-bg">
@@ -136,7 +218,7 @@ export default function DEX() {
                 <div className="flex items-center">
                   <input
                     type="number"
-                    value={'0.0'}
+                    value={estimatedOutput}
                     disabled
                     placeholder="0.0"
                     className="w-full bg-transparent text-2xl outline-none"
@@ -161,7 +243,7 @@ export default function DEX() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setAutoTrigger(!autoTrigger)}
-                  disabled={!isActive || loading}
+                  disabled={!active || loading}
                 >
                   {autoTrigger ? 'On' : 'Off'}
                 </motion.button>
@@ -170,15 +252,15 @@ export default function DEX() {
               {/* Swap Button */}
               <motion.button
                 className={`w-full py-4 rounded-lg text-lg font-semibold 
-                  ${isActive 
+              ${active 
                     ? 'bg-gradient-to-r from-neon-pink to-neon-blue button-glow' 
                     : 'bg-gray-600 cursor-not-allowed'}`}
-                whileHover={isActive ? { scale: 1.02 } : {}}
-                whileTap={isActive ? { scale: 0.98 } : {}}
+                whileHover={active ? { scale: 1.02 } : {}}
+                whileTap={active ? { scale: 0.98 } : {}}
                 onClick={handleSwap}
-                disabled={!isActive || loading}
+                disabled={!active || loading}
               >
-                {!isActive 
+                {!active 
                   ? 'Connect Wallet' 
                   : loading 
                     ? 'Swapping...' 
